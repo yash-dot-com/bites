@@ -9,4 +9,4 @@ export function successResponse(res: Response, data: any, message: string = "suc
 // error response structure 
 export function errorResponse(res: Response, statusCode: number, error: string) {
   return res.status(statusCode).json({success: false, error})
-}
+}   
