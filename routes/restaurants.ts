@@ -26,6 +26,5 @@ router.post("/", validate(RestaurantSchema), async (req, res) => {
   })
 })
 
-
-
+// setting up zod
 export default router 
