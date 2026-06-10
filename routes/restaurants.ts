@@ -5,7 +5,7 @@ import type { Restaurant } from "../schemas/restaurant.js"
 import { initializeRedisClient } from "../utils/redisClient.js"
 import { restaurantKeyById } from "../utils/redisKeys.js"
 import { nanoid } from "nanoid"
-import { successResponse } from "../utils/responses.js"
+import { errorResponse, successResponse } from "../utils/responses.js"
 import type { Request, Response, NextFunction } from "express"
 import { checkRestaurantExists } from "../middlewares/checkRestaurantId.js"
 
@@ -62,6 +62,22 @@ router.get("/:restaurantId", checkRestaurantExists ,async (req: Request<{ restau
   } catch (error) {
     next(error)
   }
+})
+
+// DELETE /restaurant/:id   
+// implemented alone
+router.delete("/:restaurantId", checkRestaurantExists, async (req, res, next) => {
+  const { restaurantId } = req.params
+  const client = await initializeRedisClient()
+  // create key from restaurantId (restaurant:restaurantId)
+  const restaurantKey = restaurantKeyById(restaurantId)
+  // delete from redis using key, return 1 if success, 0 if key did not exist
+  const result = await client.del(restaurantKey)
+  if (!result) {
+    return errorResponse(res,404,"restaurant doesn't exists")
+  }
+  console.log(`restaurant : ${restaurantKey} deleted successfully`)
+  return successResponse(res,"restaurant deleted successfully")
 })
 
 export default router 
