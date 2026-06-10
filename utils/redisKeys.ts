@@ -11,4 +11,11 @@ export function getKeyName(...args: string[]) {
 
 // helper function to create key with restaurant id
 export const restaurantKeyById = (id: string) => getKeyName("restaurant", id)
+// bites:restaurant:restaurantId
 
+// helper function to create key with review id 
+export const reviewKeyById = (id: string) => getKeyName("review", id)
+// bites:review:restaurantId
+
+export const reviewDetailsKeyById = (id: string) => getKeyName("review_detail", id)
+// bites:review_detail:reviewId ? 
