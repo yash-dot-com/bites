@@ -19,3 +19,11 @@ export const reviewKeyById = (id: string) => getKeyName("review", id)
 
 export const reviewDetailsKeyById = (id: string) => getKeyName("review_detail", id)
 // bites:review_detail:reviewId ? 
+
+// SETS 
+// cuisines set for storing all the cuisines (italian, mexican, indian, spanish, chinese) etc 
+export const cuisinesKey = getKeyName("cuisines")
+// cusine is the set of a specific cuisine and all the restaurants that serves it.
+export const cuisineKey = (name: string) => getKeyName("cuisine", name)
+// restautantCuisines is the set for each restaurant to store all the avaiable cuisins in it
+export const restaurantCuisineKeyById = (id: string) => getKeyName("restaurant_cuisines", id)

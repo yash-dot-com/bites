@@ -3,12 +3,13 @@ import { validate } from "../middlewares/validate.js"
 import { RestaurantSchema } from "../schemas/restaurant.js"
 import type { Restaurant } from "../schemas/restaurant.js"
 import { initializeRedisClient } from "../utils/redisClient.js"
-import { restaurantKeyById, reviewDetailsKeyById, reviewKeyById } from "../utils/redisKeys.js"
+import { cuisineKey, cuisinesKey, restaurantKeyById, reviewDetailsKeyById, reviewKeyById } from "../utils/redisKeys.js"
 import { nanoid } from "nanoid"
 import { errorResponse, successResponse } from "../utils/responses.js"
 import type { Request, Response, NextFunction } from "express"
 import { checkRestaurantExists } from "../middlewares/checkRestaurantId.js"
 import { ReviewSchema, type Review } from "../schemas/review.js"
+import { restaurantCuisineKeyById } from "../utils/redisKeys.js"
 
 const router = express.Router()
 
@@ -35,8 +36,21 @@ router.post("/", validate(RestaurantSchema), async (req, res, next) => {
     // write restaurantKey:hashData in hashed format to redis, and returns a hashkey : number
     // we paralelly write new entry in our primary database as well in production
     const addResult = await client.hSet(restaurantKey, hashData)
-    console.log(`added ${addResult} fields`)
 
+    // the data returns cuisines array that may have multiple strings inside it.
+    // we want to execute set operations for each string inside that array.
+    // Promise.all can run multiple async operations in parallel and you wait until all of them finish
+    // 
+    await Promise.all([
+      ...data.cuisines.map((cuisine) => Promise.all([
+        client.sAdd(cuisinesKey, cuisine),
+        client.sAdd(cuisineKey(cuisine), id),
+        client.sAdd(restaurantCuisineKeyById(id),cuisine),
+      ]))
+    ])
+
+    client.hSet(restaurantKey, hashData)
+    
     return successResponse(res, hashData, "added new restaurant")
   } catch (error) {
     // call the error handling middleware
@@ -129,11 +143,19 @@ router.get("/:restaurantId", checkRestaurantExists ,async (req: Request<{ restau
   try {
     const client = await initializeRedisClient()
     const restaurantKey = restaurantKeyById(restaurantId)
+
+    // cuisines information 
     // we added viewCount property to our data object and set it to 1 
     // viewCount will be the newly incremented number 
-    const [viewCount, restaurantData] = await Promise.all([client.hIncrBy(restaurantKey, "viewCount", 1),client.hGetAll(restaurantKey)])
+    const [viewCount, restaurantData, cuisines] = await Promise.all([
+      client.hIncrBy(restaurantKey, "viewCount", 1),
+      client.hGetAll(restaurantKey),
+      client.sMembers(restaurantCuisineKeyById(restaurantId))
+    ])
+    
     console.log(restaurantData)
-    return successResponse(res,restaurantData)
+    return successResponse(res, { ...restaurantData, cuisines })
+    
   } catch (error) {
     next(error)
   }
