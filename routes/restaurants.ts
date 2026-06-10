@@ -2,6 +2,7 @@ import express from "express"
 import { validate } from "../middlewares/validate.js"
 import { RestaurantSchema } from "../schemas/restaurant.js"
 import type { Restaurant } from "../schemas/restaurant.js"
+import { initializeRedisClient } from "../utils/redisClient.js"
 
 const router = express.Router()
 
@@ -18,6 +19,8 @@ router.get("/health", (req, res) => {
 // POST /restaurants 
 router.post("/", validate(RestaurantSchema), async (req, res) => {
   const data = req.body as Restaurant
+  const client = await initializeRedisClient();
+  
   console.log(data)
   return res.status(200).json({
     success: true,
@@ -26,5 +29,4 @@ router.post("/", validate(RestaurantSchema), async (req, res) => {
   })
 })
 
-// setting up zod
 export default router 
