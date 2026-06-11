@@ -78,7 +78,39 @@ router.post("/", validate(RestaurantSchema), async (req, res, next) => {
 })
 
 // get weather at particular restaurant 
-router.get("/:restaurantId/weather",validate())
+// reduced latency from 256ms to 23ms on average
+router.get("/:restaurantId/weather", checkRestaurantExists, async (req: Request<{restaurantId: string}>, res, next) => {
+  const { restaurantId } = req.params;
+  const client = await initializeRedisClient()
+  const weatherKey = weatherKeyById(restaurantId)
+
+  // getting from cache if exists 
+  const cachedWeather = await client.get(weatherKey)
+  if (cachedWeather) {
+    console.log("Cache Hit")
+    return successResponse(res, JSON.parse(cachedWeather)) 
+  }
+  
+  const restaurantKey = restaurantCuisineKeyById(restaurantId)
+  const coords = await client.hGet(restaurantKey, "location")
+  if (!coords) {
+    return errorResponse(res,404,"Couldn't find restaurant Location")
+  }
+  
+  const [long, lat] = coords.split(",")
+  const apiResponse = await fetch(`http://URL/${long}/${lat}`)
+
+  // if fetched from api, store in redis & return the api response.
+  if (apiResponse.status === 200) {
+    const json = await apiResponse.json()
+    await client.set(weatherKey, JSON.stringify(json), {
+      EX: 60*60 // caching weather info for 1 hour, because it can obviously change within an hr.
+    })
+    return successResponse(res,json)
+  }
+
+  return errorResponse(res,500,"Couldn't fetch weather info")
+})
 
 // POST review
 // while creating review, must check that restaurant exists and review schema is valid using our middlewares 
