@@ -11,6 +11,7 @@
 ### Scope of Improvements
 - structured unified logging
 - api rate limiting
+- dockerized deployment (still need to learn docker)
 
 ### Zod 
 - zod is used for validating incoming data from users
@@ -23,6 +24,7 @@
   - if passed, safeParse() or parse() simply return the data object
   - note : zod will by default allow extra fields in the body and strip them away when it returns back the validated data.
   - that means if I put location: "bangalore" extra field, success won't be false, just the final parsed object won't have location field in it.
+  <br>
   ```js
   import {z} from "zod"
 
@@ -48,8 +50,11 @@
   }
   
   ```
+<br>
   - get detailed nested object of errors : result.error.issues 
   - safeParse() returns
+<br>
+    
   ```js
   {
     success:true,
@@ -63,6 +68,8 @@
     error: zodError 
   } 
   ```
+
+  <br>
   - issue arrays lives inside the zodError. so error.issues is what's the meaning full data at.
 
 ### Redis 
