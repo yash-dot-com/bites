@@ -1,5 +1,8 @@
 // creating keys for access key:value pairs from redis 
 
+import { initializeContext } from "zod/v4/core"
+import { initializeRedisClient } from "./redisClient.js"
+
 // format for keys: (for separating namespaces, allows to avoid conflict if we are using multiple redis services or microservice architecture )
 // bites:restaurant:restaurantId - bites project, restaurant object and its ID 
 
@@ -32,4 +35,22 @@ export const restaurantCuisineKeyById = (id: string) => getKeyName("restaurant_c
 // need to add restaurants with zero rating whenever new one added
 export const restaurantByRatingKey = getKeyName("restaurants_by_rating")
 
-export const weatherKeyById = (id: string) => getKeyName("weather",id)
+// for storing weather in cache (cache aside pattern)
+export const weatherKeyById = (id: string) => getKeyName("weather", id)
+
+// storing restaurant details in redis json 
+export const restaurantDetailsKeyById = (id: string) => getKeyName("restaurant_details", id)
+
+// bloom filter 
+export const bloomKey = getKeyName("bloom_restaurants")
+
+// utility function to seed bloomfilters in existing redis db 
+
+async function createBloomFilters() {
+  const client = await initializeRedisClient()
+  await Promise.all([
+    client.del(bloomKey),
+    // error-rate and capacity for bloomfilter.
+    client.bf.reserve(bloomKey, 0.0001, 1000000)
+  ])
+}
