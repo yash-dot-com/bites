@@ -27,3 +27,9 @@ export const cuisinesKey = getKeyName("cuisines")
 export const cuisineKey = (name: string) => getKeyName("cuisine", name)
 // restautantCuisines is the set for each restaurant to store all the avaiable cuisins in it
 export const restaurantCuisineKeyById = (id: string) => getKeyName("restaurant_cuisines", id)
+
+// sorted sets
+// need to add restaurants with zero rating whenever new one added
+export const restaurantByRatingKey = getKeyName("restaurants_by_rating")
+
+export const weatherKeyById = (id: string) => getKeyName("weather",id)

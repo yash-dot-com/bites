@@ -3,7 +3,7 @@ import { validate } from "../middlewares/validate.js"
 import { RestaurantSchema } from "../schemas/restaurant.js"
 import type { Restaurant } from "../schemas/restaurant.js"
 import { initializeRedisClient } from "../utils/redisClient.js"
-import { cuisineKey, cuisinesKey, restaurantKeyById, reviewDetailsKeyById, reviewKeyById } from "../utils/redisKeys.js"
+import { cuisineKey, cuisinesKey, restaurantByRatingKey, restaurantKeyById, reviewDetailsKeyById, reviewKeyById } from "../utils/redisKeys.js"
 import { nanoid } from "nanoid"
 import { errorResponse, successResponse } from "../utils/responses.js"
 import type { Request, Response, NextFunction } from "express"
@@ -23,6 +23,20 @@ router.get("/health", (req, res) => {
   })
 })
 
+router.get("/", async (req, res, next) => {
+  const { page = 1, limit = 10 } = req.query
+  const start = (Number(page) - 1) * Number(limit)
+  const end = start + Number(limit)
+
+  const client = await initializeRedisClient()
+  const restaurantIds = await client.zRange(restaurantByRatingKey, start, end, { REV : true })
+  const restaurants = await Promise.all([
+    restaurantIds.map((id)=> client.hGetAll(restaurantKeyById(id)))
+  ])
+
+  return successResponse(res,restaurants)
+})
+
 // POST /restaurants 
 // NOTE we are yet to handle duplicate entries, will handle with a check condition
 router.post("/", validate(RestaurantSchema), async (req, res, next) => {
@@ -40,12 +54,16 @@ router.post("/", validate(RestaurantSchema), async (req, res, next) => {
     // the data returns cuisines array that may have multiple strings inside it.
     // we want to execute set operations for each string inside that array.
     // Promise.all can run multiple async operations in parallel and you wait until all of them finish
-    // 
+    
     await Promise.all([
       ...data.cuisines.map((cuisine) => Promise.all([
         client.sAdd(cuisinesKey, cuisine),
         client.sAdd(cuisineKey(cuisine), id),
-        client.sAdd(restaurantCuisineKeyById(id),cuisine),
+        client.sAdd(restaurantCuisineKeyById(id), cuisine),
+        client.zAdd(restaurantByRatingKey, {
+          score: 0,
+          value: id
+        })
       ]))
     ])
 
@@ -59,6 +77,9 @@ router.post("/", validate(RestaurantSchema), async (req, res, next) => {
   }
 })
 
+// get weather at particular restaurant 
+router.get("/:restaurantId/weather",validate())
+
 // POST review
 // while creating review, must check that restaurant exists and review schema is valid using our middlewares 
 router.post("/:restaurantId/reviews", checkRestaurantExists, validate(ReviewSchema), async (req: Request<{ restaurantId: string }>, res, next) => {
@@ -71,16 +92,26 @@ router.post("/:restaurantId/reviews", checkRestaurantExists, validate(ReviewSche
     const reviewKey = reviewKeyById(restaurantId)
     const reviewDetailsKey = reviewDetailsKeyById(reviewId)
     const reviewData = { id: reviewId, restaurantId, ...data, timestamp: Date.now() }
-
+ 
     // we have created 2 things here, list and  hash 
     // list bites:review:reviewId : only stores ( index:reviewId ) to fetch recent reviews 
     // hash bites:review_details:reviewId  : stores complete review ( reviewId: reviewDetails )
     // list : fast lookup recent reviewId, then fetch review details from hash using reviewId.
-    await Promise.all([
+    const [reviewCount,setResult,totalStars] = await Promise.all([
       client.lPush(reviewKey, reviewId),
-      client.hSet(reviewDetailsKey, reviewData)
+      client.hSet(reviewDetailsKey, reviewData),
+      // increasing total no of stars by adding rating from review (1-5)
+      client.hIncrByFloat(restaurantKeyById(restaurantId),"totalStars",data.rating)
     ])
 
+    const averageRating = Number((totalStars / reviewCount)).toFixed(1)
+    await Promise.all([
+      client.zAdd(restaurantByRatingKey, {
+        score: averageRating,
+        value: restaurantId
+      }),
+      client.hSet(restaurantKey,"avgStars", averageRating)
+    ])
     return successResponse(res,reviewData, "review added successfully")
     
   } catch (error) {
